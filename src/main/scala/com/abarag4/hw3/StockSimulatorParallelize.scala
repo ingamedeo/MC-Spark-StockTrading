@@ -1,41 +1,22 @@
 package com.abarag4.hw3
 
-import java.io.{BufferedWriter, File, FileWriter}
 import java.nio.file.{Files, Paths}
 import java.util.Date
 
-import com.abarag4.hw3.GetStockTimeSeries.{configuration, getClass, retrieveTickersTimeSeries}
+import com.abarag4.hw3.StockSimulator.getClass
 import com.abarag4.hw3.models.Portfolio
-import com.abarag4.hw3.utils.{PolicyUtils, TickerUtils, TimeSeriesUtils}
+import com.abarag4.hw3.utils.{PolicyUtils, PolicyUtilsParallelize, TickerUtils, TimeSeriesUtils}
 import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.rdd.RDD
 import org.slf4j.{Logger, LoggerFactory}
 
-object StockSimulator {
-
+object StockSimulatorParallelize {
   //Initialize Config and Logger objects from 3rd party libraries
   val configuration: Config = ConfigFactory.load("configuration.conf")
   val LOG: Logger = LoggerFactory.getLogger(getClass)
 
-  //Generate and return new RDD
-  def updateRDD(portfolio: Portfolio, day: Date, amount: Double, inputFile: RDD[((Date, String), (Double, Double))]): RDD[((Date, String), (Double, Double))] = {
-
-    //Select RDD elements with same date
-    val newRDD = inputFile.map(row => {
-
-      //TBH row
-      if (row._1._1.compareTo(day)==0) {
-        (row._1, (row._2._1, amount))
-      } else {
-        row
-      }
-    })
-
-    return newRDD
-  }
-
-  def buySellPolicy(portfolio: Portfolio, inputFile: RDD[((Date, String), (Double, Double))], stockTickers: List[String], initialMoney: Double, days: List[Date], currentDayIndex: Int): Unit = {
+  def buySellPolicy(portfolio: Portfolio, inputFile: Map[(Date, String), Double], stockTickers: List[String], initialMoney: Double, days: List[Date], currentDayIndex: Int): Unit = {
 
     /*
     * Buy an equal portion of each stock to begin with
@@ -52,8 +33,8 @@ object StockSimulator {
     //Perform first action
     if (currentDayIndex==0) {
       stockTickers.foreach(t => {
-        val moneyToInvestForStock = initialMoney/stockTickers.length
-        val amount = PolicyUtils.buyStock(inputFile, t, portfolio, day, moneyToInvestForStock)
+        val moneyToInvestForStock: Double = initialMoney/stockTickers.length
+        val amount = PolicyUtilsParallelize.buyStock(inputFile, t, portfolio, day, moneyToInvestForStock)
         if (amount!=0.0) {
           portfolio.getStocksMap.put(t, (day, amount))
         }
@@ -81,12 +62,12 @@ object StockSimulator {
       val currentPrice = TimeSeriesUtils.getPriceOfStockOnDay(inputFile, day, ticker)._1
       LOG.debug("ticker: "+ ticker+ " previousPrice: "+previousPrice+ " currentPrice: "+currentPrice)
 
-      if (PolicyUtils.stopLoss(inputFile,ticker, previousPortTuple.get, day, 2)) {
+      if (PolicyUtilsParallelize.stopLoss(inputFile,ticker, previousPortTuple.get, day, 2)) {
         LOG.debug("stopLoss for ticker "+ticker+" at day "+day.toString)
-        val money = PolicyUtils.sellStock(inputFile, ticker, newPortfolio, day)
+        val money = PolicyUtilsParallelize.sellStock(inputFile, ticker, newPortfolio, day)
         newPortfolio.getStocksMap.remove(ticker)
-        val newTicker = PolicyUtils.getNewRandomTicker(inputFile, portfolio, stockTickers)
-        val amount = PolicyUtils.buyStock(inputFile, newTicker, newPortfolio, day, money)
+        val newTicker = PolicyUtilsParallelize.getNewRandomTicker(inputFile, portfolio, stockTickers)
+        val amount = PolicyUtilsParallelize.buyStock(inputFile, newTicker, newPortfolio, day, money)
         if (amount!=0.0) {
           newPortfolio.getStocksMap.put(newTicker, (day, amount))
         }
@@ -96,12 +77,12 @@ object StockSimulator {
 
       }
 
-      if (PolicyUtils.gainPlateaued(inputFile, ticker, previousPortTuple.get, day, 0.1)) {
+      if (PolicyUtilsParallelize.gainPlateaued(inputFile, ticker, previousPortTuple.get, day, 0.1)) {
         LOG.debug("gainPlateaued for ticker "+ticker+" at day "+day.toString)
-        val money = PolicyUtils.sellStock(inputFile, ticker, newPortfolio, day)
+        val money = PolicyUtilsParallelize.sellStock(inputFile, ticker, newPortfolio, day)
         newPortfolio.getStocksMap.remove(ticker)
-        val newTicker = PolicyUtils.getNewRandomTicker(inputFile, portfolio, stockTickers)
-        val amount = PolicyUtils.buyStock(inputFile, newTicker, newPortfolio, day, money)
+        val newTicker = PolicyUtilsParallelize.getNewRandomTicker(inputFile, portfolio, stockTickers)
+        val amount = PolicyUtilsParallelize.buyStock(inputFile, newTicker, newPortfolio, day, money)
         if (amount!=0.0) {
           newPortfolio.getStocksMap.put(newTicker, (day, amount))
         }
@@ -124,7 +105,7 @@ object StockSimulator {
     return daysList.toList
   }
 
-  def startSimulation(sim: Int, tickers: List[String], inputData: RDD[((Date, String), (Double, Double))], days: List[Date], initialMoney: Double) : Double = {
+  def startSimulation(sim: Int, tickers: List[String], inputData: Map[(Date, String), Double], days: List[Date], initialMoney: Double) : Double = {
 
     LOG.info("Starting simulation now!")
     LOG.info("Simulation number: "+sim)
@@ -188,7 +169,7 @@ object StockSimulator {
 
     val inputMap = filteredInput.map(x => {
       val line = x.split(Constants.COMMA)
-      ((TimeSeriesUtils.getDateFromLine(x), line(0)), (line(2).toDouble, 0.0))
+      ((TimeSeriesUtils.getDateFromLine(x), line(0)), line(2).toDouble)
     }).cache()
 
     LOG.info("Time series data preparation..")
@@ -197,15 +178,13 @@ object StockSimulator {
 
     //Convert RDD to usual Scala types as within a single simulation no parallelism is present.
     val initialTickersList = initialTickers.collect.toList
-    //val filteredInputList = inputMap.collect.toMap[(Date, String), Double]
+    val filteredInputList = inputMap.collect.toMap[(Date, String), Double]
 
-    /*
+
       val finalAmounts = (context.parallelize(1 to numberOfSims)
       .map(i => startSimulation(i, initialTickersList, filteredInputList, days, initialMoney))
       .reduce(_+_)/numberOfSims.toDouble)
-     */
 
-    startSimulation(1, initialTickersList, inputMap, days, initialMoney)
 
     context.stop()
   }

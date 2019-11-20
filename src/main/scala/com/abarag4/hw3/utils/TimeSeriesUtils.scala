@@ -17,7 +17,7 @@ object TimeSeriesUtils {
 
   def processTimeSeriesFile(filePath: String, fileContent: String, outputList: scala.collection.mutable.ListBuffer[String]): Unit = {
 
-    //clean filename
+    //clean filename (/blahblahblah/blah/file.csv)
     val fileName = filePath.split(Constants.SLASH).last.stripSuffix(Constants.CSVEXT)
 
     fileContent.split("\n").drop(1)
@@ -79,5 +79,35 @@ object TimeSeriesUtils {
 
     val filteredInputFile = inputFile.filter(line => isAfterStartDate(line, startDate)).filter(line => isbeforeEndDate(line, endDate))
     return filteredInputFile
+  }
+
+  def getPriceOfStockOnDay(inputFile: RDD[((Date, String), (Double, Double))], currentDay: Date, stockTicker: String) : (Double, Boolean) = {
+
+   // val datesGroup = inputFile.filter(key => (TimeSeriesUtils.isMatchingDate(key._1._1, currentDay)))
+    //val amount = datesGroup.filter(el => el._1._2.equals(stockTicker))
+
+    val value = inputFile.lookup((currentDay, stockTicker))
+
+    if (value.nonEmpty) {
+      val first = value.head
+      return (first._1, true)
+    }
+
+    return (0.0, false)
+  }
+
+
+  def getPriceOfStockOnDay(inputFile: Map[(Date, String), Double], currentDay: Date, stockTicker: String) : (Double, Boolean) = {
+
+    //.filter(el => TimeSeriesUtils.isMatchingTicker(el._2, stockTicker))
+    val datesGroup = inputFile.filter(key => (TimeSeriesUtils.isMatchingDate(key._1._1, currentDay)))
+    if (datesGroup.nonEmpty) {
+      val amount = datesGroup.filter(el => el._1._2.equals(stockTicker))
+      if (amount.size == 1) {
+        return (amount.head._2, true)
+      }
+    }
+
+    return (0.0, false)
   }
 }

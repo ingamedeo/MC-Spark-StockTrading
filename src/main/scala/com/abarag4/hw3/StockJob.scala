@@ -4,7 +4,6 @@ import java.io.{BufferedWriter, File, FileWriter}
 
 import com.abarag4.hw3.GetStockTimeSeries.configuration
 import com.abarag4.hw3.StockSimulator.{configuration, getClass}
-import com.abarag4.hw3.WordCount.inputFile
 import com.abarag4.hw3.utils.{TickerUtils, TimeSeriesUtils}
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.spark.SparkContext
