@@ -1,6 +1,8 @@
 package com.abarag4.hw3
 
+import java.io.{BufferedWriter, File, FileWriter}
 import java.nio.file.{Files, Paths}
+import java.text.SimpleDateFormat
 import java.util.Date
 
 import com.abarag4.hw3.StockSimulator.getClass
@@ -15,8 +17,9 @@ object StockSimulatorParallelize {
   //Initialize Config and Logger objects from 3rd party libraries
   val configuration: Config = ConfigFactory.load("configuration.conf")
   val LOG: Logger = LoggerFactory.getLogger(getClass)
+  val sdf = new SimpleDateFormat("yyyy/MM/dd")
 
-  def buySellPolicy(portfolio: Portfolio, inputFile: Map[(Date, String), Double], stockTickers: List[String], initialMoney: Double, days: List[Date], currentDayIndex: Int): Unit = {
+  def buySellPolicy(sim: Int, bufferedWriter: BufferedWriter, portfolio: Portfolio, inputFile: Map[(Date, String), Double], stockTickers: List[String], initialMoney: Double, days: List[Date], currentDayIndex: Int): Unit = {
 
     /*
     * Buy an equal portion of each stock to begin with
@@ -42,7 +45,7 @@ object StockSimulatorParallelize {
 
       portfolio.printPortfolio("initial")
 
-      return buySellPolicy(portfolio, inputFile, stockTickers, initialMoney, days, currentDayIndex+1)
+      return buySellPolicy(sim, bufferedWriter, portfolio, inputFile, stockTickers, initialMoney, days, currentDayIndex+1)
     }
 
     val newPortfolio: Portfolio = new Portfolio
@@ -71,13 +74,8 @@ object StockSimulatorParallelize {
         if (amount!=0.0) {
           newPortfolio.getStocksMap.put(newTicker, (day, amount))
         }
-
         newPortfolio.printPortfolio(day.toString)
-        return buySellPolicy(newPortfolio, inputFile, stockTickers, initialMoney, days, currentDayIndex+1)
-
-      }
-
-      if (PolicyUtilsParallelize.gainPlateaued(inputFile, ticker, previousPortTuple.get, day, 0.1)) {
+      } else if (PolicyUtilsParallelize.gainPlateaued(inputFile, ticker, previousPortTuple.get, day, 0.1)) {
         LOG.debug("gainPlateaued for ticker "+ticker+" at day "+day.toString)
         val money = PolicyUtilsParallelize.sellStock(inputFile, ticker, newPortfolio, day)
         newPortfolio.getStocksMap.remove(ticker)
@@ -87,10 +85,17 @@ object StockSimulatorParallelize {
           newPortfolio.getStocksMap.put(newTicker, (day, amount))
         }
         newPortfolio.printPortfolio(day.toString)
-        return buySellPolicy(newPortfolio, inputFile, stockTickers, initialMoney, days, currentDayIndex+1)
       }
 
     })
+
+    val total = TimeSeriesUtils.getTotalPortfolioValue(inputFile, day, newPortfolio)
+
+    val readableDay = sdf.format(day)
+    bufferedWriter.write(readableDay+Constants.COMMA+total+"\n")
+
+    LOG.info("Total portfolio value at day "+day+": " + total)
+    return buySellPolicy(sim, bufferedWriter, newPortfolio, inputFile, stockTickers, initialMoney, days, currentDayIndex+1)
 
     //stockTickers.foreach(t => println("day: "+ day+ " stock: "+ t  + " " + getAmountOfStockOnDay(inputFile, day, t)))
   }
@@ -110,12 +115,19 @@ object StockSimulatorParallelize {
     LOG.info("Starting simulation now!")
     LOG.info("Simulation number: "+sim)
 
+    val outputFile: String = configuration.getString("configuration.outputFile")
+
     //val actionsList = scala.collection.mutable.ListBuffer.empty[Portfolio]
 
     val emptyPortfolio = new Portfolio
 
+    val file = new File(outputFile+"/sim"+sim+".csv")
+    val buffWriter = new BufferedWriter(new FileWriter(file))
+
     //days.foreach(day => buySellPolicy(emptyPortfolio, inputData, tickers, day, initialMoney))
-    buySellPolicy(emptyPortfolio, inputData, tickers, initialMoney, days, 0)
+    buySellPolicy(sim, buffWriter, emptyPortfolio, inputData, tickers, initialMoney, days, 0)
+
+    buffWriter.close()
 
     LOG.info("Simulation finished")
 
@@ -180,11 +192,9 @@ object StockSimulatorParallelize {
     val initialTickersList = initialTickers.collect.toList
     val filteredInputList = inputMap.collect.toMap[(Date, String), Double]
 
-
       val finalAmounts = (context.parallelize(1 to numberOfSims)
       .map(i => startSimulation(i, initialTickersList, filteredInputList, days, initialMoney))
       .reduce(_+_)/numberOfSims.toDouble)
-
 
     context.stop()
   }

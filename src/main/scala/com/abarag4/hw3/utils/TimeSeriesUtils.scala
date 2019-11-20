@@ -5,6 +5,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 
 import com.abarag4.hw3.Constants
+import com.abarag4.hw3.models.Portfolio
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 
@@ -96,10 +97,8 @@ object TimeSeriesUtils {
     return (0.0, false)
   }
 
-
   def getPriceOfStockOnDay(inputFile: Map[(Date, String), Double], currentDay: Date, stockTicker: String) : (Double, Boolean) = {
 
-    //.filter(el => TimeSeriesUtils.isMatchingTicker(el._2, stockTicker))
     val datesGroup = inputFile.filter(key => (TimeSeriesUtils.isMatchingDate(key._1._1, currentDay)))
     if (datesGroup.nonEmpty) {
       val amount = datesGroup.filter(el => el._1._2.equals(stockTicker))
@@ -109,5 +108,19 @@ object TimeSeriesUtils {
     }
 
     return (0.0, false)
+  }
+
+  def getTotalPortfolioValue(inputFile: Map[(Date, String), Double], currentDay: Date, portfolio: Portfolio): Double = {
+
+    val total = portfolio.getStocksMap.map(entry => {
+      val v = getPriceOfStockOnDay(inputFile, currentDay, entry._1)
+      if (v._2) {
+        v._1*entry._2._2
+      } else {
+        0.0
+      }
+    }).foldLeft(0.0) { (t,i) => t + i }
+
+    return total
   }
 }
