@@ -2,9 +2,11 @@ package com.abarag4.hw3
 
 import java.io.{BufferedWriter, File, FileWriter}
 import java.nio.file.{Files, Paths}
+import java.text.SimpleDateFormat
 import java.util.Date
 
 import com.abarag4.hw3.GetStockTimeSeries.{configuration, getClass, retrieveTickersTimeSeries}
+import com.abarag4.hw3.StockSimulatorParallelize.startSimulation
 import com.abarag4.hw3.models.Portfolio
 import com.abarag4.hw3.utils.{PolicyUtils, TickerUtils, TimeSeriesUtils}
 import com.typesafe.config.{Config, ConfigFactory}
@@ -17,40 +19,16 @@ object StockSimulator {
   //Initialize Config and Logger objects from 3rd party libraries
   val configuration: Config = ConfigFactory.load("configuration.conf")
   val LOG: Logger = LoggerFactory.getLogger(getClass)
+  val sdf = new SimpleDateFormat("yyyyMMdd")
 
-  //Generate and return new RDD
-  def updateRDD(portfolio: Portfolio, day: Date, amount: Double, inputFile: RDD[((Date, String), (Double, Double))]): RDD[((Date, String), (Double, Double))] = {
-
-    //Select RDD elements with same date
-    val newRDD = inputFile.map(row => {
-
-      //TBH row
-      if (row._1._1.compareTo(day)==0) {
-        (row._1, (row._2._1, amount))
-      } else {
-        row
-      }
-    })
-
-    return newRDD
-  }
-
-  def buySellPolicy(portfolio: Portfolio, inputFile: RDD[((Date, String), (Double, Double))], stockTickers: List[String], initialMoney: Double, days: List[Date], currentDayIndex: Int): Unit = {
+  def buySellPolicy(portfolio: Portfolio, inputFile: RDD[((Date, String), (Double, Double))], stockTickers: List[String], initialMoney: Double, day: Date): Portfolio = {
 
     /*
     * Buy an equal portion of each stock to begin with
      */
 
-    //Base case
-    if (currentDayIndex >= days.size) {
-      return
-    }
-
-    //Get current day
-    val day = days(currentDayIndex)
-
     //Perform first action
-    if (currentDayIndex==0) {
+    if (portfolio.getStocksMap.isEmpty) {
       stockTickers.foreach(t => {
         val moneyToInvestForStock = initialMoney/stockTickers.length
         val amount = PolicyUtils.buyStock(inputFile, t, portfolio, day, moneyToInvestForStock)
@@ -61,7 +39,7 @@ object StockSimulator {
 
       portfolio.printPortfolio("initial")
 
-      return buySellPolicy(portfolio, inputFile, stockTickers, initialMoney, days, currentDayIndex+1)
+      return portfolio
     }
 
     val newPortfolio: Portfolio = new Portfolio
@@ -92,7 +70,8 @@ object StockSimulator {
         }
 
         newPortfolio.printPortfolio(day.toString)
-        return buySellPolicy(newPortfolio, inputFile, stockTickers, initialMoney, days, currentDayIndex+1)
+
+        return portfolio
 
       }
 
@@ -106,12 +85,13 @@ object StockSimulator {
           newPortfolio.getStocksMap.put(newTicker, (day, amount))
         }
         newPortfolio.printPortfolio(day.toString)
-        return buySellPolicy(newPortfolio, inputFile, stockTickers, initialMoney, days, currentDayIndex+1)
+
+        return portfolio
       }
 
     })
 
-    //stockTickers.foreach(t => println("day: "+ day+ " stock: "+ t  + " " + getAmountOfStockOnDay(inputFile, day, t)))
+    return portfolio
   }
 
   //This function retrieves the list of ordered days in the inputData (within the time period specified)
@@ -124,24 +104,38 @@ object StockSimulator {
     return daysList.toList
   }
 
-  def startSimulation(sim: Int, tickers: List[String], inputData: RDD[((Date, String), (Double, Double))], days: List[Date], initialMoney: Double) : Double = {
+  def startSimulation(sim: Int, tickers: List[String], inputData: RDD[((Date, String), (Double, Double))], days: List[Date], initialMoney: Double) : Unit = {
 
     LOG.info("Starting simulation now!")
-    LOG.info("Simulation number: "+sim)
-
-    //val actionsList = scala.collection.mutable.ListBuffer.empty[Portfolio]
+    //LOG.info("Simulation number: "+sim)
 
     val emptyPortfolio = new Portfolio
 
-    //days.foreach(day => buySellPolicy(emptyPortfolio, inputData, tickers, day, initialMoney))
-    buySellPolicy(emptyPortfolio, inputData, tickers, initialMoney, days, 0)
+    val portList = scala.collection.mutable.ListBuffer.empty[Portfolio]
+    portList.append(emptyPortfolio)
+
+    days.foreach(d => {
+
+      val dayPort = buySellPolicy(portList.head, inputData, tickers, initialMoney, d)
+      portList.clear()
+      portList.append(dayPort)
+
+      val outputRDD = inputData.filter(el => el._1._1.compareTo(d)==0).filter(el3 => {
+        val stockData = dayPort.getStocksMap.get(el3._1._2)
+        stockData.nonEmpty
+      }).map(el2 => {
+        val stockData = dayPort.getStocksMap.get(el2._1._2)
+        if (stockData.nonEmpty) {
+          (el2._1, (el2._2._1, stockData.get._2))
+        } else {
+          (el2._1, (el2._2._1, 0))
+        }
+      })
+
+      outputRDD.saveAsTextFile("output_dir2/"+sim+Constants.SLASH+sdf.format(d))
+    })
 
     LOG.info("Simulation finished")
-
-    //print each action
-    //actionsList.foreach(x => println(x))
-
-    return 0.0
   }
 
   def generateRandomStockList(context: SparkContext, inputFile: String,  numberOfStocks: Int): RDD[String] = {
@@ -195,17 +189,12 @@ object StockSimulator {
     val days = getListOfOrderedDays(filteredInput)
     LOG.info("Time series data preparation complete!")
 
-    //Convert RDD to usual Scala types as within a single simulation no parallelism is present.
     val initialTickersList = initialTickers.collect.toList
-    //val filteredInputList = inputMap.collect.toMap[(Date, String), Double]
 
-    /*
-      val finalAmounts = (context.parallelize(1 to numberOfSims)
-      .map(i => startSimulation(i, initialTickersList, filteredInputList, days, initialMoney))
-      .reduce(_+_)/numberOfSims.toDouble)
-     */
-
-    startSimulation(1, initialTickersList, inputMap, days, initialMoney)
+    //Due to nested datasets, we can't run this also in parallel
+    for (i <- 1 to numberOfSims) {
+      startSimulation(i, initialTickersList, inputMap, days, initialMoney)
+    }
 
     context.stop()
   }

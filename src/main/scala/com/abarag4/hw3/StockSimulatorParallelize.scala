@@ -186,26 +186,6 @@ object StockSimulatorParallelize {
     val initialTickersList = initialTickers.collect.toList
     val filteredInputList = inputMap.collect.toMap[(Date, String), Double]
 
-    /*
-        val file = new File(outputFile+"/sim"+sim+".csv")
-    val buffWriter = new BufferedWriter(new FileWriter(file))
-    buffWriter.write(sim+Constants.COMMA+readableDay+Constants.COMMA+total+"\n")
-    buffWriter.close()
-
-     val finalAmounts = (context.parallelize(1 to numberOfSims)
-      .map(i => startSimulation(i, initialTickersList, filteredInputList, days, initialMoney))
-      .reduce(_+_)/numberOfSims.toDouble)
-
-       val output = simsOutput.collect()
-
-    val file = new File(outputFile+"all.csv")
-    val buffWriter = new BufferedWriter(new FileWriter(file))
-    output.foreach(l => {
-      buffWriter.write(l.toString())
-    })
-    buffWriter.close()
-     */
-
     val outputPath = new Path("output_dir/")
 
     val simsOutput = (context.parallelize(1 to numberOfSims)).flatMap(i => startSimulation(i, initialTickersList, filteredInputList, days, initialMoney).map(el => i+Constants.COMMA+el._1+Constants.COMMA+el._2))
