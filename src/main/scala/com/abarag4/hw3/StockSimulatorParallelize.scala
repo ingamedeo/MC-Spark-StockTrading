@@ -9,6 +9,8 @@ import com.abarag4.hw3.StockSimulator.getClass
 import com.abarag4.hw3.models.Portfolio
 import com.abarag4.hw3.utils.{PolicyUtils, PolicyUtilsParallelize, TickerUtils, TimeSeriesUtils}
 import com.typesafe.config.{Config, ConfigFactory}
+import org.apache.commons.io.FileUtils
+import org.apache.hadoop.fs.Path
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.rdd.RDD
 import org.slf4j.{Logger, LoggerFactory}
@@ -151,10 +153,16 @@ object StockSimulatorParallelize {
     val numberOfStocks: Int = configuration.getInt("configuration.numberOfStocks")
     val numberOfSims: Int = configuration.getInt("configuration.numSimulations")
     val outputFile: String = configuration.getString("configuration.outputFile")
+    val local = configuration.getBoolean("configuration.local")
 
     LOG.info("Setting up Spark environment..")
 
-    val sparkConf = new SparkConf().setAppName(jobName).setMaster("local")
+    val sparkConf = new SparkConf().setAppName(jobName)
+
+    if (local) {
+      sparkConf.setMaster("local")
+    }
+
     val context = new SparkContext(sparkConf)
 
     /* Generate random start tickers */
@@ -187,9 +195,23 @@ object StockSimulatorParallelize {
      val finalAmounts = (context.parallelize(1 to numberOfSims)
       .map(i => startSimulation(i, initialTickersList, filteredInputList, days, initialMoney))
       .reduce(_+_)/numberOfSims.toDouble)
+
+       val output = simsOutput.collect()
+
+    val file = new File(outputFile+"all.csv")
+    val buffWriter = new BufferedWriter(new FileWriter(file))
+    output.foreach(l => {
+      buffWriter.write(l.toString())
+    })
+    buffWriter.close()
      */
 
+    val outputPath = new Path("output_dir/")
+
     val simsOutput = (context.parallelize(1 to numberOfSims)).flatMap(i => startSimulation(i, initialTickersList, filteredInputList, days, initialMoney).map(el => (i, el._1, el._2)))
+    LOG.info("Deleting output directory..")
+    outputPath.getFileSystem(context.hadoopConfiguration).delete(outputPath, true)
+    LOG.info("Writing output data..")
     simsOutput.saveAsTextFile(outputFile)
 
     context.stop()
