@@ -36,12 +36,12 @@ object PolicyUtilsParallelize {
     val previousPortTuple = portfolio.getStocksMap.get(ticker)
     val currentPrice = TimeSeriesUtils.getPriceOfStockOnDay(inputFile, day, ticker)._1
     if (previousPortTuple.isEmpty) {
-      LOG.debug("STOP!!! Attempted to sell stock which I don't have! ticker: "+ticker+" "+portfolio.printPortfolio("ERR"))
+      //***LOG.debug("STOP!!! Attempted to sell stock which I don't have! ticker: "+ticker+" "+portfolio.printPortfolio("ERR"))
       throw new IllegalStateException()
       return 0.0
     }
     val previousAmount = previousPortTuple.get._2
-    LOG.info("> Selling "+ day.toString + " " + previousAmount+" units of stock "+ticker+ " at price "+currentPrice+". Obtained money: "+currentPrice*previousAmount)
+    //***LOG.info("> Selling "+ day.toString + " " + previousAmount+" units of stock "+ticker+ " at price "+currentPrice+". Obtained money: "+currentPrice*previousAmount)
     return currentPrice*previousAmount
   }
 
@@ -51,7 +51,7 @@ object PolicyUtilsParallelize {
     val currentPriceT = TimeSeriesUtils.getPriceOfStockOnDay(inputFile, day, ticker)
 
     if (!currentPriceT._2) {
-      LOG.info("Unable to buy stock "+ticker+" on day "+day+" as it is NOT traded")
+      //***LOG.info("Unable to buy stock "+ticker+" on day "+day+" as it is NOT traded")
       return 0.0
     }
 
@@ -59,12 +59,12 @@ object PolicyUtilsParallelize {
     val newAmount = money/currentPrice
     if (previousPortTuple.isEmpty) {
       //portfolio.getStocksMap.put(ticker, (day, newAmount))
-      LOG.info("> "+ day.toString +" Buying "+newAmount+" units of stock "+ticker+ " at price "+currentPrice+". Spent money: "+newAmount*currentPrice)
+      //***LOG.info("> "+ day.toString +" Buying "+newAmount+" units of stock "+ticker+ " at price "+currentPrice+". Spent money: "+newAmount*currentPrice)
       return newAmount
     } else {
       val oldAmount = previousPortTuple.get._2
       //portfolio.getStocksMap.put(ticker, (day, newAmount+oldAmount))
-      LOG.info(">" + day.toString + " Buying "+newAmount+" [additional] units of stock "+ticker+ " at price "+currentPrice+". Spent money: "+newAmount*currentPrice)
+      //***LOG.info(">" + day.toString + " Buying "+newAmount+" [additional] units of stock "+ticker+ " at price "+currentPrice+". Spent money: "+newAmount*currentPrice)
       return oldAmount+newAmount
     }
 

@@ -3,7 +3,8 @@ package com.abarag4.hw3
 import java.io.{BufferedWriter, File, FileWriter}
 import java.nio.file.{Files, Paths}
 
-import com.abarag4.hw3.utils.TickerUtils
+import com.abarag4.hw3.StockSimulatorParallelize.{LOG, configuration}
+import com.abarag4.hw3.utils.{TickerUtils, TimeSeriesUtils}
 
 import scala.io.Source
 import com.typesafe.config.{Config, ConfigFactory}
@@ -29,7 +30,7 @@ object GetStockTimeSeries {
   def retrieveTickerTimeSeries(tickerName: String, apiKey: String): Unit = {
 
     val extension = ".csv"
-    val path = "jsons/"
+    val path = configuration.getString("configuration.tickerDownloadPath")
 
     val file = new File(path+tickerName+extension)
     if (file.isFile) {
@@ -76,12 +77,29 @@ object GetStockTimeSeries {
 
   def main(args: Array[String]): Unit = {
 
+    val jobName: String = configuration.getString("configuration.jobName")
     val tickerFile: String = configuration.getString("configuration.tickerFile")
+    val tickerDownloadPath: String = configuration.getString("configuration.tickerDownloadPath")
+    val mergedFile: String = configuration.getString("configuration.mergedFile")
+
+    val sparkConf = new SparkConf().setAppName(jobName).setMaster("local")
+    val context = new SparkContext(sparkConf)
 
     val tickerList = scala.collection.mutable.ListBuffer.empty[String]
 
     TickerUtils.createTickerList(tickerList, tickerFile)
 
     retrieveTickersTimeSeries(tickerList)
+
+    /* Merge newly downloaded API data if we haven't already done so */
+    val timeSeriesInputFiles = context.wholeTextFiles(tickerDownloadPath)
+
+    if (!Files.exists(Paths.get(mergedFile))) {
+      LOG.info("Merging time series data..")
+      TimeSeriesUtils.processTimeSeriesFiles(timeSeriesInputFiles, mergedFile)
+    } else {
+      LOG.info("Time series data already merged!")
+    }
+
   }
 }

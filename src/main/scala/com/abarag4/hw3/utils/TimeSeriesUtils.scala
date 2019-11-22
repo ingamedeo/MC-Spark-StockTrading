@@ -33,7 +33,7 @@ object TimeSeriesUtils {
     //RDD collected on single machine for list append operation
     tuple.collect().foreach(a => processTimeSeriesFile(a._1, a._2, outList))
 
-    println(outList.length)
+    //println(outList.length)
 
     val buffWriter = new BufferedWriter(new FileWriter(outputFile))
     outList.foreach(entry => buffWriter.write(entry+"\n"))

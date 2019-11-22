@@ -13,13 +13,15 @@ import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.rdd.RDD
 import org.slf4j.{Logger, LoggerFactory}
 
+import scala.collection.mutable.ListBuffer
+
 object StockSimulatorParallelize {
   //Initialize Config and Logger objects from 3rd party libraries
   val configuration: Config = ConfigFactory.load("configuration.conf")
   val LOG: Logger = LoggerFactory.getLogger(getClass)
   val sdf = new SimpleDateFormat("yyyy/MM/dd")
 
-  def buySellPolicy(sim: Int, bufferedWriter: BufferedWriter, portfolio: Portfolio, inputFile: Map[(Date, String), Double], stockTickers: List[String], initialMoney: Double, days: List[Date], currentDayIndex: Int): Unit = {
+  def buySellPolicy(sim: Int, portfolioOutput: ListBuffer[(String, Double)], portfolio: Portfolio, inputFile: Map[(Date, String), Double], stockTickers: List[String], initialMoney: Double, days: List[Date], currentDayIndex: Int): Unit = {
 
     /*
     * Buy an equal portion of each stock to begin with
@@ -43,9 +45,9 @@ object StockSimulatorParallelize {
         }
       })
 
-      portfolio.printPortfolio("initial")
+      //portfolio.printPortfolio("initial")
 
-      return buySellPolicy(sim, bufferedWriter, portfolio, inputFile, stockTickers, initialMoney, days, currentDayIndex+1)
+      return buySellPolicy(sim, portfolioOutput, portfolio, inputFile, stockTickers, initialMoney, days, currentDayIndex+1)
     }
 
     val newPortfolio: Portfolio = new Portfolio
@@ -53,8 +55,8 @@ object StockSimulatorParallelize {
     //Copy elements between portfolios
     portfolio.getStocksMap.foreach(s => newPortfolio.stocksMap.put(s._1, s._2))
 
-    portfolio.printPortfolio("oldPort")
-    newPortfolio.printPortfolio("newPort")
+    //portfolio.printPortfolio("oldPort")
+    //newPortfolio.printPortfolio("newPort")
 
     //For each ticker that I own
     portfolio.getStocksMap.keys.foreach(ticker => {
@@ -63,10 +65,10 @@ object StockSimulatorParallelize {
 
       val previousPrice = TimeSeriesUtils.getPriceOfStockOnDay(inputFile, previousPortTuple.get._1, ticker)._1
       val currentPrice = TimeSeriesUtils.getPriceOfStockOnDay(inputFile, day, ticker)._1
-      LOG.debug("ticker: "+ ticker+ " previousPrice: "+previousPrice+ " currentPrice: "+currentPrice)
+      //***LOG.debug("ticker: "+ ticker+ " previousPrice: "+previousPrice+ " currentPrice: "+currentPrice)
 
       if (PolicyUtilsParallelize.stopLoss(inputFile,ticker, previousPortTuple.get, day, 2)) {
-        LOG.debug("stopLoss for ticker "+ticker+" at day "+day.toString)
+        //***LOG.debug("stopLoss for ticker "+ticker+" at day "+day.toString)
         val money = PolicyUtilsParallelize.sellStock(inputFile, ticker, newPortfolio, day)
         newPortfolio.getStocksMap.remove(ticker)
         val newTicker = PolicyUtilsParallelize.getNewRandomTicker(inputFile, portfolio, stockTickers)
@@ -74,9 +76,9 @@ object StockSimulatorParallelize {
         if (amount!=0.0) {
           newPortfolio.getStocksMap.put(newTicker, (day, amount))
         }
-        newPortfolio.printPortfolio(day.toString)
+        //newPortfolio.printPortfolio(day.toString)
       } else if (PolicyUtilsParallelize.gainPlateaued(inputFile, ticker, previousPortTuple.get, day, 0.1)) {
-        LOG.debug("gainPlateaued for ticker "+ticker+" at day "+day.toString)
+        //***LOG.debug("gainPlateaued for ticker "+ticker+" at day "+day.toString)
         val money = PolicyUtilsParallelize.sellStock(inputFile, ticker, newPortfolio, day)
         newPortfolio.getStocksMap.remove(ticker)
         val newTicker = PolicyUtilsParallelize.getNewRandomTicker(inputFile, portfolio, stockTickers)
@@ -84,7 +86,7 @@ object StockSimulatorParallelize {
         if (amount!=0.0) {
           newPortfolio.getStocksMap.put(newTicker, (day, amount))
         }
-        newPortfolio.printPortfolio(day.toString)
+        //newPortfolio.printPortfolio(day.toString)
       }
 
     })
@@ -92,10 +94,11 @@ object StockSimulatorParallelize {
     val total = TimeSeriesUtils.getTotalPortfolioValue(inputFile, day, newPortfolio)
 
     val readableDay = sdf.format(day)
-    bufferedWriter.write(readableDay+Constants.COMMA+total+"\n")
 
-    LOG.info("Total portfolio value at day "+day+": " + total)
-    return buySellPolicy(sim, bufferedWriter, newPortfolio, inputFile, stockTickers, initialMoney, days, currentDayIndex+1)
+    portfolioOutput.append((readableDay, total))
+
+    //***LOG.info("Total portfolio value at day "+day+": " + total)
+    return buySellPolicy(sim, portfolioOutput, newPortfolio, inputFile, stockTickers, initialMoney, days, currentDayIndex+1)
 
     //stockTickers.foreach(t => println("day: "+ day+ " stock: "+ t  + " " + getAmountOfStockOnDay(inputFile, day, t)))
   }
@@ -110,31 +113,24 @@ object StockSimulatorParallelize {
     return daysList.toList
   }
 
-  def startSimulation(sim: Int, tickers: List[String], inputData: Map[(Date, String), Double], days: List[Date], initialMoney: Double) : Double = {
+  def startSimulation(sim: Int, tickers: List[String], inputData: Map[(Date, String), Double], days: List[Date], initialMoney: Double) : List[(String, Double)] = {
 
     LOG.info("Starting simulation now!")
     LOG.info("Simulation number: "+sim)
 
-    val outputFile: String = configuration.getString("configuration.outputFile")
-
-    //val actionsList = scala.collection.mutable.ListBuffer.empty[Portfolio]
+    val portfolioValuesList = scala.collection.mutable.ListBuffer.empty[(String, Double)]
 
     val emptyPortfolio = new Portfolio
 
-    val file = new File(outputFile+"/sim"+sim+".csv")
-    val buffWriter = new BufferedWriter(new FileWriter(file))
-
     //days.foreach(day => buySellPolicy(emptyPortfolio, inputData, tickers, day, initialMoney))
-    buySellPolicy(sim, buffWriter, emptyPortfolio, inputData, tickers, initialMoney, days, 0)
-
-    buffWriter.close()
+    buySellPolicy(sim, portfolioValuesList, emptyPortfolio, inputData, tickers, initialMoney, days, 0)
 
     LOG.info("Simulation finished")
 
     //print each action
     //actionsList.foreach(x => println(x))
 
-    return 0.0
+    return portfolioValuesList.toList
   }
 
   def generateRandomStockList(context: SparkContext, inputFile: String,  numberOfStocks: Int): RDD[String] = {
@@ -154,6 +150,7 @@ object StockSimulatorParallelize {
     val mergedFile: String = configuration.getString("configuration.mergedFile")
     val numberOfStocks: Int = configuration.getInt("configuration.numberOfStocks")
     val numberOfSims: Int = configuration.getInt("configuration.numSimulations")
+    val outputFile: String = configuration.getString("configuration.outputFile")
 
     LOG.info("Setting up Spark environment..")
 
@@ -162,18 +159,7 @@ object StockSimulatorParallelize {
 
     /* Generate random start tickers */
     val initialTickers = generateRandomStockList(context, tickerFile, numberOfStocks)
-
     LOG.info("Random stock portfolio OK")
-
-    /* Merge newly downloaded API data if we haven't already done so */
-    val timeSeriesInputFiles = context.wholeTextFiles("jsons/")
-
-    if (!Files.exists(Paths.get(mergedFile))) {
-      LOG.info("Merging time series data..")
-      TimeSeriesUtils.processTimeSeriesFiles(timeSeriesInputFiles, mergedFile)
-    } else {
-      LOG.info("Time series data already merged!")
-    }
 
     /* Filter merged input file by date */
     val filteredInput = TimeSeriesUtils.filterByDate(context, mergedFile, timePeriodStart, timePeriodEnd)
@@ -192,9 +178,19 @@ object StockSimulatorParallelize {
     val initialTickersList = initialTickers.collect.toList
     val filteredInputList = inputMap.collect.toMap[(Date, String), Double]
 
-      val finalAmounts = (context.parallelize(1 to numberOfSims)
+    /*
+        val file = new File(outputFile+"/sim"+sim+".csv")
+    val buffWriter = new BufferedWriter(new FileWriter(file))
+    buffWriter.write(sim+Constants.COMMA+readableDay+Constants.COMMA+total+"\n")
+    buffWriter.close()
+
+     val finalAmounts = (context.parallelize(1 to numberOfSims)
       .map(i => startSimulation(i, initialTickersList, filteredInputList, days, initialMoney))
       .reduce(_+_)/numberOfSims.toDouble)
+     */
+
+    val simsOutput = (context.parallelize(1 to numberOfSims)).flatMap(i => startSimulation(i, initialTickersList, filteredInputList, days, initialMoney).map(el => (i, el._1, el._2)))
+    simsOutput.saveAsTextFile(outputFile)
 
     context.stop()
   }

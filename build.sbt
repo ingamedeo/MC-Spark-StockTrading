@@ -24,7 +24,7 @@ libraryDependencies += "org.apache.spark" %% "spark-core" % "2.4.4" exclude("org
 // https://mvnrepository.com/artifact/org.apache.spark/spark-mllib
 //libraryDependencies += "org.apache.spark" %% "spark-mllib" % "2.4.4" exclude("org.slf4j", "slf4j-log4j12") exclude("ch.qos.logback", "slf4j-log4j12")
 
-mainClass in (Compile, run) := Some("com.abarag4.hw3.WordCount")
-mainClass in assembly := Some("com.abarag4.hw3.WordCount")
+mainClass in (Compile, run) := Some("com.abarag4.hw3.StockSimulatorParallelize")
+mainClass in assembly := Some("com.abarag4.hw3.StockSimulatorParallelize")
 
 assemblyJarName in assembly := "amedeo_baragiola_hw3.jar"
