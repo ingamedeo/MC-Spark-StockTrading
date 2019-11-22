@@ -208,7 +208,8 @@ object StockSimulatorParallelize {
 
     val outputPath = new Path("output_dir/")
 
-    val simsOutput = (context.parallelize(1 to numberOfSims)).flatMap(i => startSimulation(i, initialTickersList, filteredInputList, days, initialMoney).map(el => (i, el._1, el._2)))
+    val simsOutput = (context.parallelize(1 to numberOfSims)).flatMap(i => startSimulation(i, initialTickersList, filteredInputList, days, initialMoney).map(el => i+Constants.COMMA+el._1+Constants.COMMA+el._2))
+
     LOG.info("Deleting output directory..")
     outputPath.getFileSystem(context.hadoopConfiguration).delete(outputPath, true)
     LOG.info("Writing output data..")
