@@ -19,7 +19,13 @@ object GetStockTimeSeries {
   val configuration: Config = ConfigFactory.load("configuration.conf")
   val LOG: Logger = LoggerFactory.getLogger(getClass)
 
-
+  /**
+   * This function is used to check data integrity of downloaded data.
+   * Data that contains { is invalid because requested format is CSV.
+   *
+   * @param response Response obtained from server
+   * @return Boolean indicating whether data is well formed or not
+   */
   def checkRetrData(response: String): Boolean = {
     if (response.contains("{")) {
       return false
@@ -27,6 +33,12 @@ object GetStockTimeSeries {
     return true
   }
 
+  /**
+   * This function connects to the API and downloads stock data for the past 20 years for the given ticker.
+   *
+   * @param tickerName Name of ticker of which to retrieve data
+   * @param apiKey API key to connect to the API
+   */
   def retrieveTickerTimeSeries(tickerName: String, apiKey: String): Unit = {
 
     val extension = ".csv"
@@ -63,6 +75,10 @@ object GetStockTimeSeries {
       }
   }
 
+  /**
+   * This function retrieves actual stock data from the Web API given a ticker list.
+   * @param tickerList tickers of which to download the data
+   */
   def retrieveTickersTimeSeries(tickerList: scala.collection.mutable.ListBuffer[String]): Unit = {
     tickerList.foreach(el => retrieveTickerTimeSeries(el, "0T7FFMR6IO8H1OL0"))
   }

@@ -1,7 +1,6 @@
 package com.abarag4.hw3.utils
 
 import java.io.{BufferedWriter, File, FileWriter}
-import java.text.SimpleDateFormat
 import java.util.Date
 
 import com.abarag4.hw3.Constants
@@ -11,11 +10,25 @@ import org.apache.spark.rdd.RDD
 
 object TimeSeriesUtils {
 
+  /**
+   * This function processes a CSV line and returns some of its columns as a String in a ListBuffer
+   *
+   * @param fileName Filename of CSV file
+   * @param line Current CSV line being processed
+   * @param outputList Output list containing CSV lines (Output)
+   */
   def processTSLine(fileName: String, line: String, outputList: scala.collection.mutable.ListBuffer[String]) : Unit = {
     val rows = line.split(Constants.COMMA)
     outputList.append(fileName+Constants.COMMA+rows(0)+Constants.COMMA+rows(5)+Constants.COMMA+rows(6))
   }
 
+  /**
+   * This function processes the CSV file and returns it as a ListBuffer
+   *
+   * @param filePath File path of CSV file
+   * @param fileContent Content of CSV file
+   * @param outputList Output list containing CSV lines (Output)
+   */
   def processTimeSeriesFile(filePath: String, fileContent: String, outputList: scala.collection.mutable.ListBuffer[String]): Unit = {
 
     //clean filename (/blahblahblah/blah/file.csv)

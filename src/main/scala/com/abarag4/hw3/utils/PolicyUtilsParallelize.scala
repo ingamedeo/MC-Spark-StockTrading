@@ -4,7 +4,6 @@ import java.util.Date
 
 import com.abarag4.hw3.models.Portfolio
 import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.spark.rdd.RDD
 import org.slf4j.{Logger, LoggerFactory}
 
 import scala.util.Random
@@ -17,6 +16,15 @@ object PolicyUtilsParallelize {
 
   val random = new Random()
 
+  /**
+   * This function generates a new random ticker from a list of tickers.
+   * If all tickers are already owned at this point in the simulation, then, an already owned random ticker is returned.
+   *
+   * @param inputFile Input file Map
+   * @param portfolio Currently owned Portfolio
+   * @param stockTickers List of stock tickers to choose from
+   * @return Random ticker
+   */
   def getNewRandomTicker(inputFile: Map[(Date, String), Double], portfolio: Portfolio, stockTickers: List[String]): String = {
     val ownedTickers = portfolio.getStocksMap.keys
     val newTickers = stockTickers.filterNot(ownedTickers.toSet)
@@ -31,6 +39,15 @@ object PolicyUtilsParallelize {
     }
   }
 
+  /**
+   * This function handles the sell operations on stocks.
+   *
+   * @param inputFile  Input file Map
+   * @param ticker Ticker to sell
+   * @param portfolio Currently owned portfolio
+   * @param day Current day on which to perform the sell operation
+   * @return Amount on money earned from sell
+   */
   def sellStock(inputFile: Map[(Date, String), Double], ticker: String, portfolio: Portfolio, day: Date): Double = {
     //LOG.debug("ticker: "+ ticker+ " previousPrice: "+previousPrice+ " currentPrice: "+currentPrice)
     val previousPortTuple = portfolio.getStocksMap.get(ticker)
@@ -45,6 +62,17 @@ object PolicyUtilsParallelize {
     return currentPrice*previousAmount
   }
 
+  /**
+   *
+   * This function handles the buy operation on stocks.
+   *
+   * @param inputFile Input file Map
+   * @param ticker Ticker to buy
+   * @param portfolio Currently owned portfolio
+   * @param day Current day on which to perform the buy operation
+   * @param money  Amount on money available to buy
+   * @return Amount of stock bought
+   */
   def buyStock(inputFile: Map[(Date, String), Double], ticker: String, portfolio: Portfolio, day: Date, money: Double): Double = {
 
     val previousPortTuple = portfolio.getStocksMap.get(ticker)
@@ -70,6 +98,18 @@ object PolicyUtilsParallelize {
 
   }
 
+  /**
+   *
+   * This function is part of our policy.
+   * Here we aim at selling stocks that lose value quickly and replace them with more profitable stocks.
+   *
+   * @param inputFile Input file Map
+   * @param ticker  Current ticker
+   * @param currentPosition Current open position with the stock being considered
+   * @param day Current day
+   * @param delta Delta above which the loss is considered excessive
+   * @return Boolean representing whether this stock should be sold or not
+   */
   def stopLoss(inputFile: Map[(Date, String), Double], ticker: String, currentPosition: (Date, Double), day: Date, delta: Double): Boolean = {
 
     val prevPrice = TimeSeriesUtils.getPriceOfStockOnDay(inputFile, currentPosition._1, ticker);
@@ -88,6 +128,18 @@ object PolicyUtilsParallelize {
     return false;
   }
 
+  /**
+   *
+   * This function is part of our policy.
+   * Here we attempt to sell stocks that are not making us much money, but instead have a relatively stable trend
+   *
+   * @param inputFile Input file Map
+   * @param ticker  Current ticker
+   * @param currentPosition Current open position with the stock being considered
+   * @param day Current day
+   * @param delta Delta above which the loss is considered excessive
+   * @return Boolean representing whether this stock should be sold or not
+   */
   def gainPlateaued(inputFile: Map[(Date, String), Double], ticker: String, currentPosition: (Date, Double), day: Date, delta: Double): Boolean = {
 
     val prevPrice = TimeSeriesUtils.getPriceOfStockOnDay(inputFile, currentPosition._1, ticker);

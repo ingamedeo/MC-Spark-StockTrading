@@ -6,10 +6,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 
 import com.abarag4.hw3.GetStockTimeSeries.{configuration, getClass, retrieveTickersTimeSeries}
-import com.abarag4.hw3.StockSimulatorParallelize.startSimulation
+import com.abarag4.hw3.StockSimulatorParallelize.LOG
 import com.abarag4.hw3.models.Portfolio
 import com.abarag4.hw3.utils.{PolicyUtils, TickerUtils, TimeSeriesUtils}
 import com.typesafe.config.{Config, ConfigFactory}
+import org.apache.hadoop.fs.Path
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import org.slf4j.{Logger, LoggerFactory}
@@ -63,11 +64,9 @@ object StockSimulator {
         LOG.debug("stopLoss for ticker "+ticker+" at day "+day.toString)
         val money = PolicyUtils.sellStock(inputFile, ticker, newPortfolio, day)
         newPortfolio.getStocksMap.remove(ticker)
-        val newTicker = PolicyUtils.getNewRandomTicker(inputFile, portfolio, stockTickers)
-        val amount = PolicyUtils.buyStock(inputFile, newTicker, newPortfolio, day, money)
-        if (amount!=0.0) {
-          //Todo: Fix this, we should do something (or pick random stocks between the ones traded on that day)
-          newPortfolio.getStocksMap.put(newTicker, (day, amount))
+        val tuple = checkAvailabilityAndBuy(portfolio, newPortfolio, inputFile, stockTickers, day, money)
+        if (tuple._2!=0.0) {
+          newPortfolio.getStocksMap.put(tuple._1, (day, tuple._2))
         }
 
         //newPortfolio.printPortfolio(day.toString)
@@ -80,10 +79,11 @@ object StockSimulator {
         LOG.debug("gainPlateaued for ticker "+ticker+" at day "+day.toString)
         val money = PolicyUtils.sellStock(inputFile, ticker, newPortfolio, day)
         newPortfolio.getStocksMap.remove(ticker)
-        val newTicker = PolicyUtils.getNewRandomTicker(inputFile, portfolio, stockTickers)
-        val amount = PolicyUtils.buyStock(inputFile, newTicker, newPortfolio, day, money)
-        if (amount!=0.0) {
-          newPortfolio.getStocksMap.put(newTicker, (day, amount))
+        //val newTicker = PolicyUtils.getNewRandomTicker(inputFile, portfolio, stockTickers)
+        //val amount = PolicyUtils.buyStock(inputFile, newTicker, newPortfolio, day, money)
+        val tuple = checkAvailabilityAndBuy(portfolio, newPortfolio, inputFile, stockTickers, day, money)
+        if (tuple._2!=0.0) {
+          newPortfolio.getStocksMap.put(tuple._1, (day, tuple._2))
         }
         //newPortfolio.printPortfolio(day.toString)
 
@@ -93,6 +93,17 @@ object StockSimulator {
     })
 
     return portfolio
+  }
+
+  @scala.annotation.tailrec
+  def checkAvailabilityAndBuy(portfolio: Portfolio, newPortfolio: Portfolio, inputFile: RDD[((Date, String), (Double, Double))], stockTickers: List[String], day: Date, money: Double): (String, Double) = {
+    val newTicker = PolicyUtils.getNewRandomTicker(inputFile, portfolio, stockTickers)
+    val amount = PolicyUtils.buyStock(inputFile, newTicker, newPortfolio, day, money)
+    if (amount!=0.0) {
+      return (newTicker, amount)
+    }
+
+    checkAvailabilityAndBuy(portfolio, newPortfolio, inputFile, stockTickers, day, money)
   }
 
   //This function retrieves the list of ordered days in the inputData (within the time period specified)
@@ -105,7 +116,7 @@ object StockSimulator {
     return daysList.toList
   }
 
-  def startSimulation(sim: Int, tickers: List[String], inputData: RDD[((Date, String), (Double, Double))], days: List[Date], initialMoney: Double) : Unit = {
+  def startSimulation(sim: Int, tickers: List[String], inputData: RDD[((Date, String), (Double, Double))], days: List[Date], initialMoney: Double, outputFile: String) : Unit = {
 
     LOG.info("Starting simulation now!")
     //LOG.info("Simulation number: "+sim)
@@ -133,7 +144,7 @@ object StockSimulator {
         }
       })
 
-      outputRDD.saveAsTextFile("output_dir2/"+sim+Constants.SLASH+sdf.format(d))
+      outputRDD.saveAsTextFile(outputFile+Constants.SLASH+sim+Constants.SLASH+sdf.format(d))
     })
 
     LOG.info("Simulation finished")
@@ -156,10 +167,17 @@ object StockSimulator {
     val mergedFile: String = configuration.getString("configuration.mergedFile")
     val numberOfStocks: Int = configuration.getInt("configuration.numberOfStocks")
     val numberOfSims: Int = configuration.getInt("configuration.numSimulations")
+    val outputFile2: String = configuration.getString("configuration.outputFile2")
+    val local = configuration.getBoolean("configuration.local")
 
     LOG.info("Setting up Spark environment..")
 
     val sparkConf = new SparkConf().setAppName(jobName).setMaster("local")
+
+    if (local) {
+      sparkConf.setMaster("local")
+    }
+
     val context = new SparkContext(sparkConf)
 
     /* Generate random start tickers */
@@ -192,9 +210,14 @@ object StockSimulator {
 
     val initialTickersList = initialTickers.collect.toList
 
+    val outputPath = new Path(outputFile2+Constants.SLASH)
+
+    LOG.info("Deleting output directory..")
+    outputPath.getFileSystem(context.hadoopConfiguration).delete(outputPath, true)
+
     //Due to nested datasets, we can't run this also in parallel
     for (i <- 1 to numberOfSims) {
-      startSimulation(i, initialTickersList, inputMap, days, initialMoney)
+      startSimulation(i, initialTickersList, inputMap, days, initialMoney, outputFile2)
     }
 
     context.stop()

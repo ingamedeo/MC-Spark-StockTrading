@@ -73,20 +73,18 @@ object StockSimulatorParallelize {
         //***LOG.debug("stopLoss for ticker "+ticker+" at day "+day.toString)
         val money = PolicyUtilsParallelize.sellStock(inputFile, ticker, newPortfolio, day)
         newPortfolio.getStocksMap.remove(ticker)
-        val newTicker = PolicyUtilsParallelize.getNewRandomTicker(inputFile, portfolio, stockTickers)
-        val amount = PolicyUtilsParallelize.buyStock(inputFile, newTicker, newPortfolio, day, money)
-        if (amount!=0.0) {
-          newPortfolio.getStocksMap.put(newTicker, (day, amount))
+        val tuple = checkAvailabilityAndBuy(portfolio, newPortfolio, inputFile, stockTickers, day, money)
+        if (tuple._2!=0.0) {
+          newPortfolio.getStocksMap.put(tuple._1, (day, tuple._2))
         }
         //newPortfolio.printPortfolio(day.toString)
       } else if (PolicyUtilsParallelize.gainPlateaued(inputFile, ticker, previousPortTuple.get, day, 0.1)) {
         //***LOG.debug("gainPlateaued for ticker "+ticker+" at day "+day.toString)
         val money = PolicyUtilsParallelize.sellStock(inputFile, ticker, newPortfolio, day)
         newPortfolio.getStocksMap.remove(ticker)
-        val newTicker = PolicyUtilsParallelize.getNewRandomTicker(inputFile, portfolio, stockTickers)
-        val amount = PolicyUtilsParallelize.buyStock(inputFile, newTicker, newPortfolio, day, money)
-        if (amount!=0.0) {
-          newPortfolio.getStocksMap.put(newTicker, (day, amount))
+        val tuple = checkAvailabilityAndBuy(portfolio, newPortfolio, inputFile, stockTickers, day, money)
+        if (tuple._2!=0.0) {
+          newPortfolio.getStocksMap.put(tuple._1, (day, tuple._2))
         }
         //newPortfolio.printPortfolio(day.toString)
       }
@@ -103,6 +101,17 @@ object StockSimulatorParallelize {
     return buySellPolicy(sim, portfolioOutput, newPortfolio, inputFile, stockTickers, initialMoney, days, currentDayIndex+1)
 
     //stockTickers.foreach(t => println("day: "+ day+ " stock: "+ t  + " " + getAmountOfStockOnDay(inputFile, day, t)))
+  }
+
+  @scala.annotation.tailrec
+  def checkAvailabilityAndBuy(portfolio: Portfolio, newPortfolio: Portfolio, inputFile: Map[(Date, String), Double], stockTickers: List[String], day: Date, money: Double): (String, Double) = {
+    val newTicker = PolicyUtilsParallelize.getNewRandomTicker(inputFile, portfolio, stockTickers)
+    val amount = PolicyUtilsParallelize.buyStock(inputFile, newTicker, newPortfolio, day, money)
+    if (amount!=0.0) {
+      return (newTicker, amount)
+    }
+
+    checkAvailabilityAndBuy(portfolio, newPortfolio, inputFile, stockTickers, day, money)
   }
 
   //This function retrieves the list of ordered days in the inputData (within the time period specified)
@@ -186,7 +195,7 @@ object StockSimulatorParallelize {
     val initialTickersList = initialTickers.collect.toList
     val filteredInputList = inputMap.collect.toMap[(Date, String), Double]
 
-    val outputPath = new Path("output_dir/")
+    val outputPath = new Path(outputFile+Constants.SLASH)
 
     val simsOutput = (context.parallelize(1 to numberOfSims)).flatMap(i => startSimulation(i, initialTickersList, filteredInputList, days, initialMoney).map(el => i+Constants.COMMA+el._1+Constants.COMMA+el._2))
 
