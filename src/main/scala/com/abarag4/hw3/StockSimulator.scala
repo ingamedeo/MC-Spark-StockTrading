@@ -37,7 +37,7 @@ object StockSimulator {
         }
       })
 
-      portfolio.printPortfolio("initial")
+      //portfolio.printPortfolio("initial")
 
       return portfolio
     }
@@ -47,8 +47,8 @@ object StockSimulator {
     //Copy elements between portfolios
     portfolio.getStocksMap.foreach(s => newPortfolio.stocksMap.put(s._1, s._2))
 
-    portfolio.printPortfolio("oldPort")
-    newPortfolio.printPortfolio("newPort")
+    //portfolio.printPortfolio("oldPort")
+    //newPortfolio.printPortfolio("newPort")
 
     //For each ticker that I own
     portfolio.getStocksMap.keys.foreach(ticker => {
@@ -66,10 +66,11 @@ object StockSimulator {
         val newTicker = PolicyUtils.getNewRandomTicker(inputFile, portfolio, stockTickers)
         val amount = PolicyUtils.buyStock(inputFile, newTicker, newPortfolio, day, money)
         if (amount!=0.0) {
+          //Todo: Fix this, we should do something (or pick random stocks between the ones traded on that day)
           newPortfolio.getStocksMap.put(newTicker, (day, amount))
         }
 
-        newPortfolio.printPortfolio(day.toString)
+        //newPortfolio.printPortfolio(day.toString)
 
         return portfolio
 
@@ -84,7 +85,7 @@ object StockSimulator {
         if (amount!=0.0) {
           newPortfolio.getStocksMap.put(newTicker, (day, amount))
         }
-        newPortfolio.printPortfolio(day.toString)
+        //newPortfolio.printPortfolio(day.toString)
 
         return portfolio
       }
