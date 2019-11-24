@@ -1,4 +1,4 @@
-# Amedeo Baraigola - HW3 CS441
+# Amedeo Baragiola - HW3 CS441
 #### Politecnico di Milano
 #### University of Illinois at Chicago
 
