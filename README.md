@@ -127,6 +127,37 @@ The policy, each time it is run, checks whether each stock in the current portfo
 
 When a decision is made to sell a certain stock due to condition (a) or (b) a new stock needs to be selected for purchase. This is the random component of this policy; the stock is randomly selected among those not currently owned and if that is not possible (all stocks are already owned), it is randomly selected among all possible stocks.
 
+
+## Creating charts
+
+Upon completion of the Spark simulations the output is produced in csv format. The default output directory is output_dir on the HDFS filesystem.
+If you have previously merged the output files (recommended) you shall now have a single output file. You are required to name the files appropriately.
+
+From now on, we assume that the files will be named out.csv.
+If different names are used changes will need to be made in the relevant files.
+
+### Requirements to plot charts
+
+* Python notebooks (Jupyter or JupyterLab installed. Installation instructions here: https://jupyterlab.readthedocs.io/en/stable/getting_started/installation.html
+* Pandas library for Python notebooks. Instructions here: https://pandas.pydata.org/pandas-docs/stable/install.html
+* PyPlot for Python notebooks. Instructions here: https://matplotlib.org/3.1.1/users/installing.html
+
+In order to create charts an industry-standard tool in the data science world has been used: Pandas.
+A Python notebook with the relevant code can be found in the "HW3.ipynb" file in the repository charts/ folder, the following instructions explain how to run it:
+
+1. Make sure that the requirements listed above have been installed.
+2. Open Jupyter or JupyterLab and drag the HW3.ipynb to open it.
+3. Copy the output files from the map/reduce jobs in the same folder as the .ipynb file.
+4. Click on "Run" -> "Run all cells".
+
+The charts/ folder in the repository root also contains the charts obtained by following the procedure above.
+
+Note: Make sure that the file names match those listed in the python notebook source code, if you use different names you may need to change them.
+
+Demo URL: https://amedeobaragiola.me/HW3.html
+
 ## AWS EMR Deployment
 
 A YouTube video showing the AWS EMR deployment process is available here: https://www.youtube.com/watch?v=NwX04rRdOdo
+
+
