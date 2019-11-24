@@ -129,6 +129,9 @@ The policy, each time it is run, checks whether each stock in the current portfo
 
 When a decision is made to sell a certain stock due to condition (a) or (b) a new stock needs to be selected for purchase. This is the random component of this policy; the stock is randomly selected among those not currently owned and if that is not possible (all stocks are already owned), it is randomly selected among all possible stocks.
 
+## Where to find the output in the repository
+
+The output of a sample set of 30 simulations is located in the results/ folder in the repo root directory.
 
 ## Creating charts
 
