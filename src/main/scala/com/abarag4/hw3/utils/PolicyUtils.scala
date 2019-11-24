@@ -121,6 +121,9 @@ object PolicyUtils {
       return false
     }
 
+    // LOG.debug("previousPrice: "+prevPrice._1)
+    // LOG.debug("todaysPrice: "+todaysPrice._1)
+
     //We are loosing money faster than delta.
     if ((prevPrice._1 - delta) < todaysPrice._1) {
       return true
@@ -152,7 +155,7 @@ object PolicyUtils {
     }
 
     //We are not making more money than delta (100 + delta (2) > 102)
-    if ((prevPrice._1 + delta) > todaysPrice._1) {
+    if ((prevPrice._1 + delta) < todaysPrice._1) {
       return true
     }
 

@@ -22,6 +22,17 @@ object StockSimulator {
   val LOG: Logger = LoggerFactory.getLogger(getClass)
   val sdf = new SimpleDateFormat("yyyyMMdd")
 
+  /**
+   * This function implements the chosen policy for the simulations; in order to do so, it relies on other utility functions.
+   * Please see the comments above the utility functions for more details.
+   *
+   * @param portfolio Current portfolio object
+   * @param inputFile RDD input data
+   * @param stockTickers List of tickers used by the current set of simulations
+   * @param initialMoney Initial amount of money available
+   * @param day Current day
+   * @return Resulting portfolio obtained after the policy performs the appropriate actions for that day
+   */
   def buySellPolicy(portfolio: Portfolio, inputFile: RDD[((Date, String), (Double, Double))], stockTickers: List[String], initialMoney: Double, day: Date): Portfolio = {
 
     /*
@@ -95,6 +106,19 @@ object StockSimulator {
     return portfolio
   }
 
+  /**
+   *
+   * This function checks whether a specific ticker is available (data for it is present) in the data set on a specific day and, if so,
+   * buys the associated stock.
+   *
+   * @param portfolio Initial portfolio
+   * @param newPortfolio Portfolio being processed
+   * @param inputFile Input data RDD
+   * @param stockTickers List of tickers used by the current set of simulations
+   * @param day Current day
+   * @param money Amount of money available to buy a new ticker
+   * @return
+   */
   @scala.annotation.tailrec
   def checkAvailabilityAndBuy(portfolio: Portfolio, newPortfolio: Portfolio, inputFile: RDD[((Date, String), (Double, Double))], stockTickers: List[String], day: Date, money: Double): (String, Double) = {
     val newTicker = PolicyUtils.getNewRandomTicker(inputFile, portfolio, stockTickers)
@@ -106,6 +130,13 @@ object StockSimulator {
     checkAvailabilityAndBuy(portfolio, newPortfolio, inputFile, stockTickers, day, money)
   }
 
+  /**
+   * This function computes the list of dates present in the given dataset.
+   * This is used because going through the dates sequentially wouldn't work as there are missing dates (e.g. weekends) on which no trading is done.
+   *
+   * @param inputData Input data RDD
+   * @return List of Dates in the dataset
+   */
   //This function retrieves the list of ordered days in the inputData (within the time period specified)
   def getListOfOrderedDays(inputData: RDD[String]) : List[Date] = {
     val daysList = scala.collection.mutable.ListBuffer.empty[Date]
@@ -116,6 +147,16 @@ object StockSimulator {
     return daysList.toList
   }
 
+  /**
+   * This function is the entry point of our simulation.
+   *
+   * @param sim Simulation number
+   * @param tickers List of chosen tickers for the current set of simulations
+   * @param inputData Input data RDD
+   * @param days List of days in the current time period
+   * @param initialMoney Initial money available for the simulation
+   * @param outputFile String containing the output folder in which part* files are saved.
+   */
   def startSimulation(sim: Int, tickers: List[String], inputData: RDD[((Date, String), (Double, Double))], days: List[Date], initialMoney: Double, outputFile: String) : Unit = {
 
     LOG.info("Starting simulation now!")
@@ -150,6 +191,15 @@ object StockSimulator {
     LOG.info("Simulation finished")
   }
 
+  /**
+   * This function computes a random list of stocks from the full list of available tickers.
+   * We do this in order to run the simulation on a subset of tickers.
+   *
+   * @param context SparkContext
+   * @param inputFile String representing the input file path
+   * @param numberOfStocks Number of random stocks we wish to select from the full list
+   * @return RDD Containing the ticker names of the selected stocks
+   */
   def generateRandomStockList(context: SparkContext, inputFile: String,  numberOfStocks: Int): RDD[String] = {
     val tickerFile = context.textFile(inputFile)
     val sampledLines = tickerFile.takeSample(false, numberOfStocks)

@@ -151,7 +151,7 @@ object PolicyUtilsParallelize {
     }
 
     //We are not making more money than delta (100 + delta (2) > 102)
-    if ((prevPrice._1 + delta) > todaysPrice._1) {
+    if ((prevPrice._1 + delta) < todaysPrice._1) {
       return true
     }
 
