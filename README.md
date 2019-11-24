@@ -20,6 +20,7 @@ The Spark framework has been extensively used as part of this homework.
 * MacOS High Sierra
 * VMware Fusion 11.5
 * merged.csv file included in the repository. (This is useful to replicate results, however, the code for creating such file from the API responses is of course included in the project)
+* SP500.csv: file with the list of tickers of a real index-fund.
 
 ## Installation instructions
 This section contains the instructions on how to run the simulations implemented as part of this homework, the recommended procedure is to use IntellJ IDEA with the Scala plugin installed.
@@ -68,11 +69,12 @@ You may wish to deploy this homework on the HDP Sandbox in order to run it and t
 3. Copy the dblp.xml to the Sandbox: "scp -P 2222 dblp.xml root@sandbox-hdp.hortonworks.com:/root"
 4. Login into the Sandbox: ssh -p 2222 -l root sandbox-hdp.hortonworks.com. You may be asked for a password if you have not set up SSH keys. The default password is: hadoop
 5. Create the input directory on HDFS: hdfs dfs -mkdir input_dir
-6. Load the dataset on HDFS: hdfs dfs -put merged.csv input_dir/
-7. You can now launch the job: spark-submit --verbose --deploy-mode cluster amedeo\_baragiola\_hw3.jar. (Note: You are deploying in cluster mode, check that the "local" flag in configuration.conf is set to false!)
-8. After completion the results are saved in a folder named output_dir on HDFS, you can copy them to local storage by issuing the following command: "hdfs dfs -get output_dir output"
-9. Exit from the SSH terminal, "exit"
-10. Copy the results to the host machine: scp -P 2222 -r root@sandbox-hdp.hortonworks.com:/root/output <local_path>
+6. Load the dataset on HDFS (1/2): hdfs dfs -put merged.csv input_dir/
+7. Load the dataset on HDFS (2/2): hdfs dfs -put SP500.csv input_dir/
+8. You can now launch the job: spark-submit --verbose --deploy-mode cluster amedeo\_baragiola\_hw3.jar. (Note: You are deploying in cluster mode, check that the "local" flag in configuration.conf is set to false!)
+9. After completion the results are saved in a folder named output_dir on HDFS, you can copy them to local storage by issuing the following command: "hdfs dfs -get output\_dir output"
+10. Exit from the SSH terminal, "exit"
+11. Copy the results to the host machine: scp -P 2222 -r root@sandbox-hdp.hortonworks.com:/root/output <local_path>
 
 Note: Instead of just copying the data from HDFS, I recommend merging the output files.
 In order to do that, issue the following command: "hadoop fs -getmerge /output_dir/job_specific_dir/ <local_path>.
@@ -156,7 +158,36 @@ Note: Make sure that the file names match those listed in the python notebook so
 
 Demo URL: https://amedeobaragiola.me/HW3.html
 
-## AWS EMR Deployment
+## Google Dataproc deployment
+
+This project has been deployed on Google Dataproc, there it runs on a distributed cluster which proves that the parallelization works in both implementations explained above.
+
+The steps to deploy on Google Dataproc are as follows:
+
+1. Open the console at: https://console.cloud.google.com
+2. Search "dataproc" in the top search bar and enable the Cluster API
+3. Click on the "Create cluster" button and proceed with the creation using the default settings.
+4. When the cluster shows at "Running", click on the cluster name
+5. Go the the "VM Instances" tab and click on the "SSH" button
+6. Click on the Settings icon in the window that opens and upload the input files "merged.csv" and "SP500.csv" using the Upload files option.
+7. Now go back to the cluster overview page and click on the string shown below the Cloud Storage staging bucket text.
+8. From here select upload files and then upload the jar file assembled following the instructions above.
+9. Click on the uploaded Jar file and copy the URI starting with gs://
+10. Now go back to the cluster overview page, click on the cluster name and, at the top, click the "Submit Job" button.
+11. In "Main class" enter: com.abarag4.hw3.StockSimulatorParallelize and in "Jar files" enter the URI copied above.
+12. Confirm with "Submit". Your job is now running.
+
+Numbered screenshots of the deployment process on Google Dataproc are provided in the screenshots/ folder in the repository root directory. These screenshots aim at showing the steps needed for the deployment process in a visual manner.
+
+## Hadoop M/R implementation
+
+An Hadoop implementation of the M/R component of the Spark jobs is provided as a zip file in the repository root directory. (Amedeo\_Baragiola\_hw3\_hadoop.zip)
+
+The idea here is that M/R is used throughout the Spark simulations in order to filter the input data file and extract relevant stock values for each day of the simulation. This part, which is non-iterative, is implemented in Hadoop. (Filtering operation).
+
+The iterative part can be provided through sh scripts which run the hadoop jobs iteratively, even though this is surely suboptimal w.r.t. speed when compared to Spark.
+
+## AWS EMR Deployment (Hadoop M/R)
 
 A YouTube video showing the AWS EMR deployment process is available here: https://www.youtube.com/watch?v=NwX04rRdOdo
 
