@@ -1,0 +1,10 @@
+Hello amadeo,
+
+Your Hw3 is graded and your total grade is full 14%.
+
+Your link in the desription pointed to HW2's deployment video on M/R, not for spark's deployment. 
+
+Great job with the simulations and analysis.
+
+Regards,
+Mohammed Siddiq
